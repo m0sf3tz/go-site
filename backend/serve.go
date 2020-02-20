@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 )
 
 func in(w http.ResponseWriter, req *http.Request) {
@@ -47,6 +48,19 @@ func login(w http.ResponseWriter, req *http.Request) {
 	t.Execute(w, "null")
 }
 
+// sanitized the file-server not to show the "root"
+// at ./static/
+func neuter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 
 	mux := http.NewServeMux()
@@ -56,12 +70,7 @@ func main() {
 	mux.HandleFunc("/", login)
 
 	fileServer := http.FileServer(http.Dir("./images"))
-
-	// Use the mux.Handle() function to register the file server as the
-	// handler for all URL paths that start with "/images/". For matching
-	// paths, we strip the "/image" prefix before the request reaches the file
-	// server.
-	mux.Handle("/images/", http.StripPrefix("/images", fileServer))
+	mux.Handle("/images/", http.StripPrefix("/images", neuter(fileServer)))
 
 	fmt.Println(http.ListenAndServe(":8090", mux))
 }
