@@ -75,7 +75,14 @@ func totalUsers(ser *serial.Port) {
 	fmt.Println("Total number of users is: ", res[2]|res[3])
 }
 
-func comp(ser *serial.Port) {
+func printId(id int) {
+	if id == 2 {
+		fmt.Println()
+		fmt.Println("Hi sam..")
+	}
+}
+
+func comp(ser *serial.Port) int {
 	command := []byte{0xF5, 0x0C, 0x0, 0x0, 00, 0, -0x0, 0xf5}
 	sum := checksum(command)
 	command[6] = sum
@@ -87,10 +94,11 @@ func comp(ser *serial.Port) {
 	var check byte = res[4] //this guy contains ack_nouser, timeout, or user priv
 	if check == 05 {
 		fmt.Println("no user")
-		return
+		return 0
 	}
 
 	fmt.Println("User is: ", res[2]|res[3])
+	return int(res[2] | res[3])
 }
 
 func eraseAll(ser *serial.Port) {
@@ -120,6 +128,7 @@ func main() {
 
 	//totalUsers(s)
 	//eraseAll(s)
-	comp(s)
+	id := comp(s)
+	printId(id)
 	//addUser(s, 0xA5)
 }
