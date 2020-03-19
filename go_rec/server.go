@@ -3,17 +3,72 @@ package main
 import (
 	"fmt"
 	"net"
-	//"os"
+	"os"
 	"time"
 )
 
+var Error_channel chan bool
+
 const (
 	CONN_HOST = "" /* In Go this means listen to ALL the interfaces */
-	CONN_PORT = "3333"
+	CONN_PORT = "3332"
 	CONN_TYPE = "tcp"
 )
 
+var Valid_counter uint16 = 0 // This value is incremented per connection
+// and the point of it is to make sure only
+// the latest connection can send commands
+
+const SockAddr = "/tmp/echo.sock"
+
+func set_time_outs(conn *net.Conn) error {
+	err1 := (*conn).SetReadDeadline(time.Now().Add(time.Second * 5))
+	err2 := (*conn).SetWriteDeadline(time.Now().Add(time.Second * 5))
+	if err1 != nil {
+		return err1
+	}
+	if err2 != nil {
+		return err2
+	}
+	return nil
+}
+
+// Sets up the channels which talk to the tcp core (internally to this program)
+// and also sets up the unix domain sockets which talk externally to this program
+func init_ipc() net.PacketConn {
+	if err := os.RemoveAll(SockAddr); err != nil {
+		fmt.Println("Could not clear unix-socket")
+		panic(0)
+	}
+
+	l, err := net.ListenPacket("unixgram", SockAddr) //unixgram==DATAGRAM
+	if err != nil {
+		fmt.Println("listen error:", err)
+		panic(0)
+	}
+	return l
+}
+
+// Translates external UNIX-DOMAIN socket flow into interal
+// go-channel flows
+func ipc_translation_layer(l net.PacketConn) {
+
+	for {
+		var buf [1024]byte
+		n, _, err := l.ReadFrom(buf[:])
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("%s\n", string(buf[:n]))
+	}
+}
+
 func main() {
+	// Init IPC
+	l := init_ipc()
+	ipc_translation_layer(l)
+
+	Error_channel = make(chan bool)
 	// Listen for incoming connections.
 	for {
 		l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
@@ -29,54 +84,27 @@ func main() {
 		for {
 			// Listen for an incoming connection.
 			conn, err := l.Accept()
+			set_time_outs(&conn)
+
 			if err != nil {
 				fmt.Println("Error accepting: ", err.Error())
 				/* retry timer */
 				time.Sleep(time.Second * 5)
-				l.Close()
 				break
 			} else {
-				if writeSleep(conn) != nil {
-					fmt.Println("Got an error - resetting")
-					l.Close()
-					break
-				}
+				Valid_counter++
+				go handleRequest(conn, Valid_counter) // Will block here
+				fmt.Println("")
 			}
 		}
 	}
 }
 
 // Handles incoming requests.
-func handleRequest(conn net.Conn) error {
-
-	rx_bite := make([]byte, 9)
-	rx := make([]byte, 16)
-	for {
-		n, err := conn.Read(rx_bite)
-		/* take care of the case the connection is gracefully closed */
-		if err != nil {
-			return err
-		}
-		rx = append(rx, rx_bite[:n]...)
-		if len(rx) == 16 {
-			fmt.Println("Got a chunk")
-			continue
-		}
-	}
-	// Close the connection when you're done with it.
+func handleRequest(conn net.Conn, connection_id uint16) {
+	// Start the listener and writter goroutines
+	go Tcp_read(conn, connection_id)
+	//	go Tcp_write(conn, connection_id)
+	<-Error_channel
 	conn.Close()
-	return nil
-}
-
-func chunker([]byte rx) nil{
-
-}
-
-func writeSleep(conn net.Conn) error {
-	tx_byte := make([]byte, 9)
-	for {
-		tx_byte[0] = 1
-		conn.Write(tx_byte)
-		time.Sleep(time.Millisecond * 700)
-	}
 }

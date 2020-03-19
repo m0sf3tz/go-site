@@ -1,6 +1,8 @@
 package main
 
 import "fmt"
+import "net"
+import "io"
 
 const DATA_PACKET = 0
 const CMD_PACKET = 1
@@ -11,8 +13,6 @@ const LARGE_PLAYLOAD_SIZE = 512
 const DATA_PACKET_SIZE = (1 + LARGE_PLAYLOAD_SIZE) // extra one for "type"
 const CMD_PACKET_SIZE = (1 + SMALL_PAYLOAD_SIZE)   // extra one for "type"
 const MES_LEN_MAX = (DATA_PACKET_SIZE)
-
-const MAX_Q_LEN = 10
 
 var curr_buff int
 var pckt_size int
@@ -57,103 +57,37 @@ func chunker(rx []byte, lenght int) int {
 		if curr_buff == pckt_size {
 			//do something
 			fmt.Println("Parsed a slice!")
-			c <- chunk_buff
+			//c <- chunk_buff
+
+			//reset internal structures
 			chunk_buff = nil
 			curr_buff = 0
 			current_parse_type = -1
 		}
 	}
-	return 1
+	return 0
 }
 
-/*
-func main() {
-	c = make(chan []byte, MAX_Q_LEN)
-
-	b := make([]byte, 9)
-	d := make([]byte, 9)
-
-	b[0] = 1
-
-	go func() {
-		chunker(b[0:8], 8)
-		chunker(b[8:9], 1)
-		chunker(b, 9)
-	}()
-
-	i := 0
+func Tcp_read(conn net.Conn, connection_id uint16) {
 	for {
-		d = <-c
-		fmt.Println(d)
-		i++
-		if i == 2 {
-			break
+		chunk := make([]byte, 9)
+		n, err := conn.Read(chunk)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Println("Got the following error on read %s", err)
+			}
+			Error_channel <- true
+			return
 		}
+
+		// Before we process, make sure we are the latest valid connection, else just close
+		if connection_id != Valid_counter {
+			fmt.Println("Unknown - error? got a read on a stale connection")
+			Error_channel <- true
+			return
+		}
+
+		fmt.Println("chunking %d bytes", n)
+		chunker(chunk[0:n], n)
 	}
 }
-*/
-
-//int chunker(const char * rx, const int len)
-//{
-//  if(rx == NULL || len == 0)
-//  {
-//    return -1;
-//  }
-//
-//  // curr_buff: tracks the position inside chunk_buffer
-//  // pckt_size: size of current packet being processed
-//  // rx_processed : marks the position within the rx buffer;
-//  static int curr_buff;
-//  static int pckt_size;
-//  static int current_parse_type = -1;
-//  static char chunk_buff[DATA_PACKET_SIZE];
-//  int rx_proccessed = 0;
-//
-//  while(rx_proccessed != len)
-//  {
-//    if (current_parse_type == -1)
-//    {
-//      current_parse_type = *(uint8_t*)(rx+rx_proccessed);
-//
-//      switch(current_parse_type)
-//      {
-//        case DATA_PACKET:
-//          pckt_size = DATA_PACKET_SIZE;
-//          break;
-//        case CMD_PACKET:
-//          pckt_size = CMD_PACKET_SIZE;
-//          break;
-//        default:
-//          ESP_LOGE(TAG, "unknown command parse type recieved?");
-//          return -1;
-//      }
-//    }
-//
-//    // Only read within the next message boundary based on the current
-//    // Packet size being processed.
-//    int rx_left  = len - rx_proccessed;
-//    int read_len = (rx_left <= (pckt_size - curr_buff)) ? rx_left : (pckt_size - curr_buff);
-//
-//    memcpy(chunk_buff + curr_buff, rx + rx_proccessed, read_len);
-//    curr_buff               += read_len;
-//    rx_proccessed           += read_len;
-//
-//    if(curr_buff > pckt_size)
-//    {
-//      ESP_LOGE(TAG, "currentBuff > pckt_size - huge error");
-//      return -1;
-//    }
-//
-//    if (curr_buff == pckt_size)
-//    {
-//      ESP_LOGI(TAG, "Adding a packet to the RX_LL");
-//      // Reset the state machine internal to this function
-//      curr_buff = 0;
-//      current_parse_type = -1;
-//      ll_add_node(RX_LL, (void*)chunk_buff, pckt_size);
-//      const char foo[] = "hi";
-//      BaseType_t xStatus = xQueueSendToBack(xQueue_RX, (void * const) foo, 0 );
-//    }
-//  }
-//  return 0;
-//}
