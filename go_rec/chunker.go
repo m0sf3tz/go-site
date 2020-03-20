@@ -91,3 +91,14 @@ func Tcp_read(conn net.Conn, connection_id uint16) {
 		chunker(chunk[0:n], n)
 	}
 }
+
+func Tcp_write(conn net.Conn) {
+	for {
+		m := <-Tcp_core_write
+		fmt.Println("wrtting to TCP")
+		m.data[0] = 1
+		fmt.Println(m)
+		conn.Write(m.data) //TODO: assuming we wrote in one go - not correct!
+		Tcp_core_write_ack <- true
+	}
+}
