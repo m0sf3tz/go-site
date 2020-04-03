@@ -68,7 +68,8 @@ func chunker(rx []byte, lenght int) int {
 	return 0
 }
 
-func Tcp_read(conn net.Conn, connection_id uint16) {
+// Owns low level TCP reads
+func Tcp_socket_read(conn net.Conn, connection_id uint16) {
 	fmt.Println("stating read server")
 
 	for {
@@ -95,7 +96,8 @@ func Tcp_read(conn net.Conn, connection_id uint16) {
 	}
 }
 
-func Tcp_write(conn net.Conn) {
+// Owns low level TCP writes
+func Tcp_sockt_write(conn net.Conn) {
 	for {
 		<-Tcp_core_write
 		fmt.Println("wrtting to TCP")

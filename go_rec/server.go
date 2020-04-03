@@ -20,7 +20,7 @@ var Tcp_core_write chan Message
 
 const (
 	CONN_HOST = "" /* In Go this means listen to ALL the interfaces */
-	CONN_PORT = "3333"
+	CONN_PORT = "3334"
 	CONN_TYPE = "tcp"
 )
 
@@ -54,8 +54,7 @@ func timeout(t time.Duration, timeout chan bool) {
 	timeout <- true
 }
 
-func tcp_core_writter() {
-
+func tcp_core_adaptor() {
 	for {
 		x := <-Tcp_writter
 
@@ -120,7 +119,7 @@ func main() {
 		for {
 			// Listen for an incoming connection.
 			conn, err := l.Accept()
-			set_time_outs(&conn)
+			//set_time_outs(&conn)
 
 			if err != nil {
 				Device_connected = false
@@ -129,10 +128,8 @@ func main() {
 				time.Sleep(time.Second * 5)
 				break
 			} else {
-				Device_connected = true
-				Valid_counter++
 				go handleRequest(conn, Valid_counter) // Will block here
-				fmt.Println("")
+				fmt.Println("New client attached")
 			}
 		}
 	}
@@ -141,7 +138,7 @@ func main() {
 // Handles incoming requests.
 func handleRequest(conn net.Conn, connection_id uint16) {
 	// Start the listener and writter goroutines
-	//go Tcp_read(conn, connection_id)
+	go Tcp_read(conn, connection_id)
 	go Tcp_write(conn)
 	<-Error_channel
 	conn.Close()

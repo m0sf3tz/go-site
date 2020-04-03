@@ -1,102 +1,95 @@
 package main
 
 import (
-	"container/list"
 	"fmt"
+	"log"
+	"time"
 )
 
-const MAX_Q_LEN = 10
-const MAX_OUTSTANDING = 8
+const MAX_OUTSTANDING_TRANSACTIONS = 16
 
-type ll_type_e int
+var m map[int16]Packet // Map to keep track of currently outstanding transactions
 
-const RX_LL ll_type_e = 0
-const TX_LL ll_type_e = 1
-
-const MARKER_FREE = 0
-const MARKER_TAKEN = 1
-
-var marker_status_rx [MAX_Q_LEN]int
-var marker_status_tx [MAX_Q_LEN]int
-
-type Message struct {
-	Marker int
-	data   []byte
+type Packet struct {
+	transaction_id int16
+	timestamp      int64
 }
 
-func get_free_marker(t ll_type_e) int {
-	var mptr *[10]int
+func Transactions_pop(transaction_id int16) int {
+	// Check to see if a transaction_id is actually in the LL before
+	_, ok := m[transaction_id]
 
-	if t == RX_LL {
-		mptr = &marker_status_rx
-	} else {
-		mptr = &marker_status_tx
-	}
-
-	for i := 0; i < MAX_OUTSTANDING; i++ {
-		if mptr[i] == MARKER_FREE {
-			mptr[i] = MARKER_TAKEN
-			return i
-		}
-	}
-
-	fmt.Println("ran out of free markers")
-	return -1
-}
-
-func free_marker(t ll_type_e, marker int) int {
-	if marker >= MAX_OUTSTANDING || marker < 0 {
+	if !ok {
+		log.Printf("Popped a transaction_id %d that was already popped", transaction_id)
 		return -1
 	}
 
-	if t == RX_LL {
-		marker_status_rx[marker] = MARKER_FREE
-	} else {
-		marker_status_tx[marker] = MARKER_FREE
+	delete(m, transaction_id)
+
+	return int(transaction_id)
+}
+
+func Transactions_print() {
+	for k := range m {
+		fmt.Println(m[k])
 	}
-	return 0
 }
 
-func Linked_remove(i int) int {
-	for element := l.Front(); element != nil; element = element.Next() {
-		if element.Value.(Message).Marker == i {
-			l.Remove(element)
-			return 0
-		}
+func Transactions_append(transaction_id int16) {
+	// Check if the key is already in the map
+	_, ok := m[transaction_id]
+
+	if ok {
+		log.Fatal("FATAL ERROR: Key already preset when trying to add transaction_id:", transaction_id)
 	}
-	return -1
-}
 
-func Linked_append(m Message) {
-	l.PushBack(m)
-}
-
-func Linked_pop() Message {
-	m := l.Back()
-	if m == nil {
-		fmt.Println("Error... tried to pop an empty list")
-		panic(0)
+	if len(m) >= MAX_OUTSTANDING_TRANSACTIONS {
+		log.Fatal("FATAL ERROR: Outstanding transactions full, unexpected when inserting:", transaction_id)
 	}
-	l.Remove(l.Back())
-	return m.Value.(Message)
+
+	m[transaction_id] = Packet{transaction_id: transaction_id, timestamp: time_ms_since_epoch()}
 }
 
-var l *list.List
+func time_ms_since_epoch() int64 {
+	return time.Now().UnixNano() / 1e6
+}
 
 func main() {
-	fmt.Println("Go Linked Lists Tutorial")
-	l = list.New()
-	Linked_append(Message{1, nil})
-	Linked_append(Message{2, nil})
-	Linked_append(Message{3, nil})
-	// we now have a linked list with '1' at the back of the list
-	// and '2' at the front of the list.
+	m = make(map[int16]Packet)
 
-	Linked_remove(1)
-
-	for element := l.Front(); element != nil; element = element.Next() {
-		// do something with element.Value
-		fmt.Println(element.Value)
+	var i int16
+	for ; i < 20; i++ {
+		Transactions_append(i)
 	}
 
+	/*
+		m := make(map[int]Packet)
+		m[23] = Packet{transaction_id: 23, timestamp: time_ms_since_epoch()}
+		_, ok := m[232]
+		fmt.Println(ok)
+		delete(m, 23)
+		fmt.Println(m)
+		/*
+			l = list.New()
+			Linked_append(23)
+			Linked_append(12)
+			Linked_append(67)
+			Linked_print()
+	*/
+	/*
+		fmt.Println("Go Linked Lists Tutorial")
+		l = list.New()
+		Linked_append(Packet{1, nil})
+		Linked_append(Packet{2, nil})
+		Linked_append(Packet{3, nil})
+		// we now have a linked list with '1' at the back of the list
+		// and '2' at the front of the list.
+
+		Linked_remove(1)
+
+		for element := l.Front(); element != nil; element = element.Next() {
+			// do something with element.Value
+			fmt.Println(element.Value)
+		}
+	*/
 }
