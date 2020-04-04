@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
-	//	"log"
+	"log"
 	"net"
-	//	"os"
+	"os"
 	"time"
 )
+
+
+const MAX_OUTSTAND
 
 const (
 	CONN_HOST = "" /* In Go this means listen to ALL the interfaces */
@@ -14,11 +17,9 @@ const (
 	CONN_TYPE = "tcp"
 )
 
-// This is very important, it will prevent stale connections
-// from clogging up the server and hogging server cycles/files
 func set_time_outs(conn *net.Conn) error {
-	err1 := (*conn).SetReadDeadline(time.Now().Add(time.Minute * 1))
-	err2 := (*conn).SetWriteDeadline(time.Now().Add(time.Minute * 1))
+	err1 := (*conn).SetReadDeadline(time.Now().Add(time.Second * 5))
+	err2 := (*conn).SetWriteDeadline(time.Now().Add(time.Second * 5))
 	if err1 != nil {
 		return err1
 	}
@@ -29,10 +30,8 @@ func set_time_outs(conn *net.Conn) error {
 }
 
 type Packet struct {
-	packet_type      int8
-	transaction_id   int16
-	consumer_ack_req int8
-	data             []byte
+	transaction_id int16
+	data           []byte
 }
 
 func timeout(t time.Duration, timeout chan bool) {
@@ -126,42 +125,20 @@ func main() {
 // Handles incoming requests.
 func client_handler(conn net.Conn) {
 
-	// Set up the timeouts
-	set_time_outs(&conn)
-
 	// Must create the error channel we will share with the two TCP
 	// reader and writter tasks. If any errors occur during read/write/
 	// chunking the sub tasks will notify the client hanlder through
 	// this error channel
 
-	// the two TCP writer/reader slaves will
-	// write into this channel to let client_handler
-	// know something is wrong. The tcp_write_shutdown channel
-	// is used to let the tcp_socket_writter goroutine to know
-	// it is time to shutdown
-	err_chan := make(chan bool, 2)
-	tcp_write_shutdown := make(chan bool, 1)
-
-	tcp_socket_writer_chan := make(chan Packet, MAX_OUTSTANDING_TCP_CORE_SEND)
-	tcp_socket_reader_chan := make(chan Packet, MAX_OUTSTANDING_TCP_CORE_SEND)
-
+	err_chan := make(chan bool, 1)
+	tcp_socket_chan := make(chan Packet, 
 	// Start the listener and writter goroutines
-	go Tcp_socket_read(conn, err_chan, tcp_socket_reader_chan)
-	go Tcp_socket_write(conn, err_chan, tcp_write_shutdown, tcp_socket_writer_chan)
-
-	select {
-	case <-err_chan:
-		fmt.Println("a TCP error messge was recieved")
-		tcp_write_shutdown <- true
-		time.Sleep(time.Second * 5)
-		goto tcp_close
-	}
-
-tcp_close:
-	fmt.Println("closing client_handler")
+	go Tcp_read(conn, err_chan)
+	go Tcp_write(conn, err_chan)
+	<-Error_channel
+	conn.Close()
 }
 
-/*
 func unix_ipc() net.PacketConn {
 	if err := os.RemoveAll(SockAddr); err != nil {
 		log.Fatal("Could not remove unix-socket")
@@ -199,4 +176,4 @@ func ipc_translation_layer(l net.PacketConn) {
 		Tcp_writter <- m
 		fmt.Println(b[0:n])
 	}
-}*/
+}
