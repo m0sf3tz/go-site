@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-const (
-	CONN_HOST = "" /* In Go this means listen to ALL the interfaces */
-	CONN_PORT = "3334"
-	CONN_TYPE = "tcp"
-)
-
 // This is very important, it will prevent stale connections
 // from clogging up the server and hogging server cycles/files
 func set_time_outs(conn *net.Conn) error {
@@ -26,13 +20,6 @@ func set_time_outs(conn *net.Conn) error {
 		return err2
 	}
 	return nil
-}
-
-type Packet struct {
-	packet_type      int8
-	transaction_id   int16
-	consumer_ack_req int8
-	data             []byte
 }
 
 func timeout(t time.Duration, timeout chan bool) {
@@ -93,6 +80,17 @@ func main() {
 		p := unix_ipc()
 		go ipc_translation_layer(p)
 	*/
+	/*
+		packet := Packet{}
+		packet.Data = make([]byte, SMALL_PAYLOAD_SIZE)
+		packet.Data[0] = 1
+
+		packet.Transaction_id = 125
+		packet.Crc = 21581
+		packet.Packet_type = 5
+
+		fmt.Println(get_packet_device_id(packet))
+	*/
 
 	for {
 		l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
@@ -116,49 +114,11 @@ func main() {
 				time.Sleep(time.Second * 5)
 				break
 			} else {
-				go client_handler(conn)
+				go Client_handler(conn)
 				fmt.Println("New client attached") //TODO: print client TCP
 			}
 		}
 	}
-}
-
-// Handles incoming requests.
-func client_handler(conn net.Conn) {
-
-	// Set up the timeouts
-	set_time_outs(&conn)
-
-	// Must create the error channel we will share with the two TCP
-	// reader and writter tasks. If any errors occur during read/write/
-	// chunking the sub tasks will notify the client hanlder through
-	// this error channel
-
-	// the two TCP writer/reader slaves will
-	// write into this channel to let client_handler
-	// know something is wrong. The tcp_write_shutdown channel
-	// is used to let the tcp_socket_writter goroutine to know
-	// it is time to shutdown
-	err_chan := make(chan bool, 2)
-	tcp_write_shutdown := make(chan bool, 1)
-
-	tcp_socket_writer_chan := make(chan Packet, MAX_OUTSTANDING_TCP_CORE_SEND)
-	tcp_socket_reader_chan := make(chan Packet, MAX_OUTSTANDING_TCP_CORE_SEND)
-
-	// Start the listener and writter goroutines
-	go Tcp_socket_read(conn, err_chan, tcp_socket_reader_chan)
-	go Tcp_socket_write(conn, err_chan, tcp_write_shutdown, tcp_socket_writer_chan)
-
-	select {
-	case <-err_chan:
-		fmt.Println("a TCP error messge was recieved")
-		tcp_write_shutdown <- true
-		time.Sleep(time.Second * 5)
-		goto tcp_close
-	}
-
-tcp_close:
-	fmt.Println("closing client_handler")
 }
 
 /*
