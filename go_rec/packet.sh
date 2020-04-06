@@ -1,4 +1,8 @@
-go build server.go tcp_core.go constants.go ipc_core.go packet_helper.go server_config.go
+go build server.go   client_core.go   \
+         tcp_core.go constants.go     \
+         ipc_core.go packet_helper.go \
+         server_config.go logger.go   \
+         transaction_accountant.go 
 
 if [ $? != 0 ]; then
   exit 

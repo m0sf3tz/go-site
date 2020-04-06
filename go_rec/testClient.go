@@ -22,17 +22,7 @@ func main() {
 	packed := packet_pack(p)
 	fmt.Println(packed)
 
-	x2 := append(packed, packed...)
-	x2 = append(packed, packed...)
-
-	x3 := append(x2, packed...)
-
-	fmt.Println(x3)
-
-	_, err = c.Write(x3[:3])
-	time.Sleep(time.Second * 10)
-	_, err = c.Write(x3[3:])
-
+	_, err = c.Write(packed)
 	if err != nil {
 		log.Fatal(err)
 	}
