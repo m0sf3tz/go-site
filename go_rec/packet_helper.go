@@ -118,3 +118,13 @@ func get_packet_device_id(p Packet) int32 {
 	fmt.Println(device_id)
 	return int32(device_id)
 }
+
+func create_ack_pack(p Packet, reason uint8) Packet {
+	r := Packet{}
+	r.Packet_type = SERVER_ACK_PACKET
+	r.Transaction_id = p.Transaction_id
+	r.Data = make([]byte, SMALL_PAYLOAD_SIZE)
+	r.Data[PAYLOAD_OFFSET_DEVICE_ID] = reason
+
+	return r
+}

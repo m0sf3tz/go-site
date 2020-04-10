@@ -20,7 +20,7 @@ func chunker_reset(state *chunker_state) {
 	state.current_parse_type = -1
 }
 
-func chunker(state *chunker_state, rx []byte, lenght int, rx_chan chan Packet) int {
+func chunker(state *chunker_state, rx []byte, lenght int, cs *Client_state) int {
 	if len(rx) == 0 || lenght == 0 {
 		return -1
 	}
@@ -55,7 +55,7 @@ func chunker(state *chunker_state, rx []byte, lenght int, rx_chan chan Packet) i
 			fmt.Println("Recieved a packet") //TODO: remove, will clog up output
 			rx_packet := packet_unpack(state.packet_wip[:state.pckt_size])
 			// Let the client handler know we got a packet
-			rx_chan <- rx_packet
+			cs.tcp_socket_reader_chan <- rx_packet
 			//reset internal structures
 			chunker_reset(state)
 		}
@@ -64,16 +64,16 @@ func chunker(state *chunker_state, rx []byte, lenght int, rx_chan chan Packet) i
 }
 
 // Owns low level TCP reads
-func tcp_socket_read(conn net.Conn, err_chan chan bool, rx_chan chan Packet) {
+func tcp_socket_read(conn net.Conn, cs *Client_state) {
 	// Every connection needs a unique chunker
 	// create a zero initilzied state that will be passed to each chunker, this
 	// way every connection will get it's own "static" variables
-	state := chunker_state{}
-	chunker_reset(&state)
+	chunker_state := chunker_state{}
+	chunker_reset(&chunker_state)
 
 	chunk := make([]byte, PACKET_LEN_MAX)
 
-	fmt.Println("starting read server")
+	fmt.Println("starting TCP read server")
 	for {
 		n, err := conn.Read(chunk)
 
@@ -83,29 +83,29 @@ func tcp_socket_read(conn net.Conn, err_chan chan bool, rx_chan chan Packet) {
 			} else {
 				fmt.Println("Connection closed by client")
 			}
-			err_chan <- true
+			cs.err_chan_tcp <- true
 			goto err
 			return
 		}
 		fmt.Println("chunking %d bytes", n)
-		chunker(&state, chunk[0:n], n, rx_chan)
+		chunker(&chunker_state, chunk[0:n], n, cs)
 	}
 err:
-	chunker_reset(&state)
+	chunker_reset(&chunker_state)
 	fmt.Println("Closing TCP read socket!")
 	conn.Close()
-	err_chan <- true
+	cs.err_chan_tcp <- true
 }
 
 // Owns low level TCP writes
-func tcp_socket_write(conn net.Conn, err_chan chan bool, shutdown chan bool, write_chan chan Packet) {
+func tcp_socket_write(conn net.Conn, cs *Client_state) {
 	var packet Packet
 
 	for {
 		select {
-		case packet = <-write_chan:
+		case packet = <-cs.tcp_socket_writer_chan:
 			break
-		case <-shutdown:
+		case <-cs.tcp_write_shutdown:
 			goto err
 		}
 
@@ -127,26 +127,11 @@ func tcp_socket_write(conn net.Conn, err_chan chan bool, shutdown chan bool, wri
 err:
 	fmt.Println("Closing TCP write socket!")
 	conn.Close()
-	err_chan <- true
+	cs.err_chan_tcp <- true
 }
 
-// TCP core processed a packet, handle it
-// this could be an..
-// -> device ack
-// -> hello packet (used to set up linux IPC)
-// -> login packet (goes to SQL core)
-// -> query packet (goes to HTTP core)
-func tcp_core_handle_packet_rx(p Packet, cs *Client_state) {
-
-	// Since the device will tell us it's ID,
-	// we must wait for the first packet to arive
-	// from the devce, we wil use this packet
-	// to create the IPC connection to the HTTPs core
-	if cs.init != true {
-		setup_ipc(p, cs)
-		cs.init = true
-	}
-
-	//packet_type := p.Packet_type
-
+// Start the listener and writter goroutines
+func tcp_starter(conn net.Conn, cs *Client_state) {
+	go tcp_socket_read(conn, cs)
+	go tcp_socket_write(conn, cs)
 }

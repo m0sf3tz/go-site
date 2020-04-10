@@ -7,9 +7,10 @@ const DATA_PACKET = (0)         // Server -> Device
 const CMD_PACKET = (1)          // Server -> Device
 const INTERNAL_ACK_PACKET = (2) // Internal
 const DEVICE_ACK_PACKET = (3)   // Device -> Server
-const LOGIN_PACKET = (4)        // Device -> Server
-const HELLO_WORLD_PACKET = (5)  // Device -> Server
-const QUERY_PACKET = (6)        // < --- > both ways ;)
+const SERVER_ACK_PACKET = (4)   // Server -> Device
+const LOGIN_PACKET = (5)        // Device -> Server
+const HELLO_WORLD_PACKET = (6)  // Device -> Server
+const QUERY_PACKET = (7)        // < --- > both ways ;)
 
 const TYPE_SIZE = (1)
 const TRANSACTION_ID_SIZE = (2)
@@ -26,9 +27,13 @@ const PACKET_HOST_ACK_REQ_OFFSET = (3)
 const PACKET_CRC_OFFSET = (4)
 const PAYLOAD_OFFSET = (6)
 
+// Payload element offsets
+const PAYLOAD_OFFSET_ACK_NAK_REASON = (0)
+const PAYLOAD_OFFSET_DEVICE_ID = (0)
+
 const DATA_PACKET_SIZE = (TYPE_SIZE + TRANSACTION_ID_SIZE + HOST_ACK_REQ_SIZE + CRC_SIZE + LARGE_PAYLOAD_SIZE)
 const CMD_PACKET_SIZE = (TYPE_SIZE + TRANSACTION_ID_SIZE + HOST_ACK_REQ_SIZE + CRC_SIZE + SMALL_PAYLOAD_SIZE)
-const ACK_PACKET_SIZE = (TYPE_SIZE + TRANSACTION_ID_SIZE + HOST_ACK_REQ_SIZE + CRC_SIZE + REASON_SIZE) //Same format for device/server acks
+const ACK_PACKET_SIZE = (TYPE_SIZE + TRANSACTION_ID_SIZE + HOST_ACK_REQ_SIZE + CRC_SIZE + SMALL_PAYLOAD_SIZE) //Same format for device/server acks
 const LOGIN_PACKET_SIZE = (TYPE_SIZE + TRANSACTION_ID_SIZE + HOST_ACK_REQ_SIZE + CRC_SIZE + MEDIUM_PAYLOAD_SIZE)
 const HELLO_PACKET_SIZE = (TYPE_SIZE + TRANSACTION_ID_SIZE + HOST_ACK_REQ_SIZE + CRC_SIZE + SMALL_PAYLOAD_SIZE)
 
