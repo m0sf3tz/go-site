@@ -1,8 +1,9 @@
 package main
 
 import "fmt"
-import "net"
 import "time"
+import "net"
+import "sync"
 
 type Client_state struct {
 	init                   bool
@@ -17,11 +18,27 @@ type Client_state struct {
 	// Unix -> Client core
 	ipc_to_tcp_writer_chan chan Packet
 	tcp_to_icp_reader_chan chan Packet
-	err_chan_ipc           chan bool
+	ipc_read_shutdown      chan bool
 	ipc_write_shutdown     chan bool
+	ipc_shutdown           chan bool
 
+	wg        sync.WaitGroup
 	device_id string
 	sync      chan bool
+}
+
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
+	}
 }
 
 // Handles incoming requests.
@@ -29,12 +46,10 @@ func Client_handler(conn net.Conn) {
 
 	// Set up the client state
 	cs := Client_state{}
-	fmt.Println(cs)
 	// Set up the timeouts
 	set_time_outs(&conn)
 	// Initilize the packet_accountant
 	init_transaction_accountant()
-	// Initilize the IPC sockets
 
 	// Must create the error channel we will share with the two TCP
 	// reader and writter tasks. If any errors occur during read/write/
@@ -57,8 +72,11 @@ func Client_handler(conn net.Conn) {
 
 	cs.ipc_to_tcp_writer_chan = make(chan Packet, MAX_OUTSTANDING_TCP_CORE_SEND) // IPC ---> TCP
 	cs.tcp_to_icp_reader_chan = make(chan Packet, MAX_OUTSTANDING_TCP_CORE_SEND) // IPC <--- TCP
-	cs.err_chan_ipc = make(chan bool, MAX_OUTSTANDING_TCP_CORE_SEND)             // IPC (internal)
-	cs.ipc_write_shutdown = make(chan bool, 1)
+
+	cs.ipc_read_shutdown = make(chan bool, 1)  // IPC (internal)
+	cs.ipc_write_shutdown = make(chan bool, 1) // IPC (internal)
+	cs.ipc_shutdown = make(chan bool, 1)       // IPC (internal) can write to this to triger IPC shutdown and reset
+
 	cs.sync = make(chan bool, 1)
 
 	go tcp_starter(conn, &cs)
@@ -73,27 +91,18 @@ func Client_handler(conn net.Conn) {
 			logger(PRINT_WARN, "A TCP error messge was recieved")
 			cs.tcp_write_shutdown <- true
 			time.Sleep(time.Second * 5)
+			cs.ipc_shutdown <- true
 			goto shutdown_client
 
-		case <-cs.ipc_write_shutdown:
-			logger(PRINT_WARN, "A IPC error messge was recieved")
+		case <-cs.ipc_shutdown:
+			logger(PRINT_WARN, "shutting down IPC")
+			cs.wg.Add(2)
+			cs.ipc_read_shutdown <- true
 			cs.ipc_write_shutdown <- true
-			time.Sleep(time.Second * 5)
-			goto shutdown_client
+			break
 
 		case tcp_rx := <-cs.tcp_socket_reader_chan:
-			logger(PRINT_DEBUG, "Received a packet from the chunker")
-			// Since the device will tell us it's ID,
-			// we must wait for the first packet to arive
-			// from the devce, we wil use this packet
-			// to create the IPC connection to the HTTPs core
-			if cs.init != true {
-				setup_ipc(tcp_rx, &cs)
-				cs.init = true
-				break
-			}
-			fmt.Println("sending to ipc output")
-			// handle the rest of the packets normally
+			logger(PRINT_DEBUG, "sending to ipc output")
 			client_core_handle_packet_rx(tcp_rx, &cs)
 			break
 
@@ -111,7 +120,14 @@ func Client_handler(conn net.Conn) {
 	}
 	// here we handle all todos related to shutting down a client
 shutdown_client:
-	//TODO: erase socket
+	// wait for the IPC to shut down
+	if waitTimeout(&(cs.wg), time.Second) {
+		fmt.Println("Timed out waiting for wait group")
+	} else {
+		fmt.Println("Wait group finished")
+	}
+
+	//TODO: Close IPC and TCP (MUST DO!)
 	logger(PRINT_WARN, "closing client_handler")
 }
 
@@ -143,6 +159,5 @@ func client_core_handle_packet_rx(p Packet, cs *Client_state) {
 		cs.tcp_socket_writer_chan <- create_ack_pack(p, ACK_GOOD)
 	}
 
-	fmt.Println("herehereherte")
 	cs.tcp_to_icp_reader_chan <- p
 }

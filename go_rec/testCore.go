@@ -1,19 +1,25 @@
 package main
 
-import "net"
+import "fmt"
+import "log"
+import "os"
+import "bitbucket.org/avd/go-ipc/mq"
 
 func main() {
-	// connect to test IPC socket
 
-	conn, err := net.Dial("unixgram", "/tmp/unixdomain")
+	dmq, err := mq.OpenLinuxMessageQueue("smq_to_core", os.O_RDWR)
 	if err != nil {
-		panic(err)
+		logger(PRINT_FATAL, "Could not create linux smq - (did yu increase the limit in /proc/sys/fs/mqueue/msg_max?  error: ", err)
 	}
 
-	b := make([]byte, 10)
-	conn.Read(b)
-
-	conn.Close()
+	b := make([]byte, 1024)
+	for {
+		n, err := dmq.Receive(b)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(b[:n])
+	}
 }
 
 //write, readFrom work
