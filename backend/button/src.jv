@@ -1,0 +1,18 @@
+<script>  
+    };
+
+    document.getElementById("close").onclick = function(evt) {
+        if (!ws) {
+            return false;
+        }
+        ws.close();
+        return false;
+    };
+
+  function display_cmd_options(){
+    var x = document.getElementById("mySelect").value;
+    document.getLementById("java_canvas").innerHTML = "fuck you"  + x
+  };
+
+});
+</script>

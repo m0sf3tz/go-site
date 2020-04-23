@@ -8,8 +8,8 @@ import (
 	"sync"
 )
 
-var client_id uint32
-var client_map map[uint32]chan Ipc_packet
+var client_id uint64
+var client_map map[uint64]chan Ipc_packet
 var dmq_to_core, dmq_to_client *mq.LinuxMessageQueue
 var ipc_id, mutex_map, mutex_mq sync.Mutex
 
@@ -142,10 +142,7 @@ func ipc_writer(id uint32, cs *Client_state) {
 		}
 		logger(PRINT_DEBUG, "ipc_writer sending to linuxQ")
 
-		err := dmq_to_core.Send([]byte("zup sam!"))
-
-		//fmt.Println("fucker", ip.P)
-		//	err := mq_write(ipc_packet_pack(ip))
+		err := mq_write(ipc_packet_pack(ip))
 		if err != nil {
 			logger(PRINT_FATAL, "Will not handle failure to write to IPC messaeg queue - shut everything down and restart")
 		}

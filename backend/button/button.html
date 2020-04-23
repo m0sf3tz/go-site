@@ -1,0 +1,20 @@
+<script src="src.js"></script> 
+<!DOCTYPE html>
+<html>
+  <body>
+
+    <h1>Select Command</h1>
+
+    <label for="cmd">Choose a command:</label>
+
+    <select id="cmd" onchange="display_cmd_options()">
+        <option value="blank"></option>
+        <option value="add_user">Add User</option>
+        <option value="delete_user">Delete User</option>
+    </select>
+   
+    <!---This paragraph is filled up by javascript onchange of dropdown list -->
+    <p id="java_canvas"></p>
+  </body>
+</html>
+
