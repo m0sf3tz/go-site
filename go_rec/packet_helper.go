@@ -167,8 +167,8 @@ func ipc_packet_unpack(b []byte) Ipc_packet {
 	ip.P = packet_unpack(b)
 
 	//ugly math... ip.Id starts at (TOTAL_LEN-LEN(INT32))
-	id_offset := len(b) - 4 // 4 is len(uint32)
-	ip.Id = binary.LittleEndian.Uint32(b[id_offset:])
+	id_offset := len(b) - 8 // 8 is len(uint64)
+	ip.Id = binary.LittleEndian.Uint64(b[id_offset:])
 
 	return ip
 }

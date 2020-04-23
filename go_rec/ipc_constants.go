@@ -13,5 +13,5 @@ const MAX_IPC_LEN = (PACKET_LEN_MAX + 4)
 
 type Ipc_packet struct {
 	P  Packet
-	Id uint32
+	Id uint64
 }

@@ -10,12 +10,12 @@ import (
 
 var client_id uint64
 var client_map map[uint64]chan Ipc_packet
-var dmq_to_core, dmq_to_client *mq.LinuxMessageQueue
+var dmq_from_packet_to_core, dmq_from_core_to_packet *mq.LinuxMessageQueue
 var ipc_id, mutex_map, mutex_mq sync.Mutex
 
 func mq_write(msg []byte) error {
 	mutex_mq.Lock()
-	err := dmq_to_core.Send(msg)
+	err := dmq_from_packet_to_core.Send(msg)
 	if err != nil {
 		logger(PRINT_FATAL, "Wrote to a dead IPC channel - OR IPC channel full -  should be very rare - restart EVERYTHING", err)
 	}
@@ -24,7 +24,7 @@ func mq_write(msg []byte) error {
 }
 
 func mq_closer() {
-	dmq_to_core.Destroy()
+	dmq_from_packet_to_core.Destroy()
 	logger(PRINT_WARN, "Closing MQ IPC")
 }
 
@@ -35,7 +35,7 @@ func mq_listner() {
 
 	for {
 		rx := make([]byte, PACKET_LEN_MAX)
-		_, err := dmq_to_client.Receive(rx)
+		_, err := dmq_from_core_to_packet.Receive(rx)
 		if err != nil {
 			log.Fatal("failed to read q")
 		}
@@ -44,11 +44,11 @@ func mq_listner() {
 		ip := ipc_packet_unpack(rx)
 		logger(PRINT_DEBUG, "Recieved packed_id :", ip.Id)
 
-		send_to_client(ip)
+		send_to_packet(ip)
 	}
 }
 
-func register_client(id uint32, c chan Ipc_packet) {
+func register_client(id uint64, c chan Ipc_packet) {
 	mutex_map.Lock()
 	if c == nil {
 		log.Fatal("failed, map was not init")
@@ -61,7 +61,7 @@ func register_client(id uint32, c chan Ipc_packet) {
 	mutex_map.Unlock()
 }
 
-func client_deregister(id uint32) {
+func client_deregister(id uint64) {
 	mutex_map.Lock()
 	// Close the Channel
 	close(client_map[id])
@@ -69,7 +69,7 @@ func client_deregister(id uint32) {
 	mutex_map.Unlock()
 }
 
-func send_to_client(ip Ipc_packet) {
+func send_to_packet(ip Ipc_packet) {
 	mutex_map.Lock()
 
 	if _, ok := client_map[ip.Id]; !ok {
@@ -81,21 +81,21 @@ func send_to_client(ip Ipc_packet) {
 }
 
 func init_map() {
-	client_map = make(map[uint32]chan Ipc_packet)
+	client_map = make(map[uint64]chan Ipc_packet)
 }
 
 func init_lmq() {
-	mq.DestroyLinuxMessageQueue("smq_to_core")
-	mq.DestroyLinuxMessageQueue("smq_to_client")
+	mq.DestroyLinuxMessageQueue("smq_from_packet_to_core")
+	mq.DestroyLinuxMessageQueue("smq_from_core_to_packet")
 
 	var err error
 
-	dmq_to_core, err = mq.CreateLinuxMessageQueue("smq_to_core", os.O_RDWR, IPC_QUEUE_PERM, IPC_QUEUE_DEPTH, PACKET_LEN_MAX)
+	dmq_from_packet_to_core, err = mq.CreateLinuxMessageQueue("smq_from_packet_to_core", os.O_RDWR, IPC_QUEUE_PERM, IPC_QUEUE_DEPTH, PACKET_LEN_MAX)
 	if err != nil {
 		logger(PRINT_FATAL, "Could not create linux smq_client - (did yu increase the limit in /proc/sys/fs/mqueue/msg_max?  error: ", err)
 	}
 
-	dmq_to_client, err = mq.CreateLinuxMessageQueue("smq_to_client", os.O_RDWR, IPC_QUEUE_PERM, IPC_QUEUE_DEPTH, PACKET_LEN_MAX)
+	dmq_from_core_to_packet, err = mq.CreateLinuxMessageQueue("smq_from_core_to_packet", os.O_RDWR, IPC_QUEUE_PERM, IPC_QUEUE_DEPTH, PACKET_LEN_MAX)
 	if err != nil {
 		logger(PRINT_FATAL, "Could not create linux smq_client - (did yu increase the limit in /proc/sys/fs/mqueue/msg_max?  error: ", err)
 	}
@@ -103,8 +103,8 @@ func init_lmq() {
 	logger(PRINT_DEBUG, "Created linux IPC")
 }
 
-func get_ipc_id() uint32 {
-	var ret uint32
+func get_ipc_id() uint64 {
+	var ret uint64
 
 	ipc_id.Lock()
 	ret = client_id
@@ -127,7 +127,7 @@ func ipc_starter(cs *Client_state) {
 // naive, assumes a lot (chennels will never close....etc)
 // tood: fix these?
 
-func ipc_writer(id uint32, cs *Client_state) {
+func ipc_writer(id uint64, cs *Client_state) {
 	logger(PRINT_DEBUG, "starting IPC writer")
 	var ip Ipc_packet
 	ip.Id = id
@@ -149,7 +149,7 @@ func ipc_writer(id uint32, cs *Client_state) {
 	}
 }
 
-func ipc_reader(id uint32, cs *Client_state) {
+func ipc_reader(id uint64, cs *Client_state) {
 	fmt.Println("starting IPC read server")
 	// Register this ipc_reader with the ipc_core, the core will sending
 	// any IPC packets to this particular client id into this chan
