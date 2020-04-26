@@ -36,6 +36,8 @@ func transactions_print() {
 
 func transaction_scan_timeout(cs *Client_state) {
 	mutex.Lock()
+	mutex.Unlock()
+	return
 	for k := range m {
 		if time_ms_since_timestamp(m[k].timestamp) > TCP_PACKET_MS_NO_ACK_CONSIDERED_LOST {
 			logger(PRINT_WARN, "Lost packet: ", m[k].transaction_id)

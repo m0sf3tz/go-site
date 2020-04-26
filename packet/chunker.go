@@ -25,6 +25,7 @@ func chunker(rx []byte, lenght int) int {
 	if len(rx) == 0 || lenght == 0 {
 		return -1
 	}
+	asd
 
 	var rx_processed = 0
 	for rx_processed != lenght {

@@ -110,7 +110,7 @@ func Client_handler(conn net.Conn) {
 			break
 
 		case ipc_rx := <-cs.ipc_to_tcp_writer_chan:
-			logger(PRINT_DEBUG, "ClientID: ", cs.ipc_id, "received IPC packet, sending to TCP")
+			logger(PRINT_DEBUG, "ClientID: ", cs.ipc_id, " Sending to TCP")
 			cs.tcp_socket_writer_chan <- ipc_rx
 			client_enqueue_transaction(ipc_rx, &cs)
 			break
